@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "../../components/Icon";
+import SmartWalletButton from "../../components/SmartWalletButton";
 import { useWallet } from "../../hooks/useWallet";
 import { RevealDiv } from "../../components/ScrollReveal";
 import { createPortal } from "react-dom";
@@ -98,12 +99,12 @@ function TradingWalletModal({ onClose }) {
 
 
 /* ─── Data ──────────────────────────────────────────────────────── */
-const MARKET_DATA = [
-  { symbol: "ETH/USDT",  price: "2,210.45", change: "+1.2%",  vol: "1.2B", pos: true  },
-  { symbol: "SOL/USDT",  price: "82.66",    change: "+4.5%",  vol: "890M", pos: true  },
-  { symbol: "LINK/USDT", price: "8.82",     change: "-0.8%",  vol: "140M", pos: false },
-  { symbol: "BTC/USDT",  price: "64,230.0", change: "+2.1%",  vol: "4.5B", pos: true  },
-  { symbol: "AVAX/USDT", price: "24.50",    change: "-1.5%",  vol: "85M",  pos: false },
+const FALLBACK_MARKET = [
+  { symbol: "BTC/USDT",  price: "...", change: "...",  vol: "...", pos: true  },
+  { symbol: "ETH/USDT",  price: "...", change: "...",  vol: "...", pos: true  },
+  { symbol: "SOL/USDT",  price: "...", change: "...",  vol: "...", pos: true  },
+  { symbol: "LINK/USDT", price: "...", change: "...",  vol: "...", pos: true  },
+  { symbol: "AVAX/USDT", price: "...", change: "...",  vol: "...", pos: true  },
 ];
 
 const AI_SIGNALS = [
@@ -121,11 +122,45 @@ const STRATEGIES = [
 
 export default function TradingPage() {
   const [activeTab, setActiveTab] = useState("chart"); // chart|strategy
-  const [selectedPair, setSelectedPair] = useState(MARKET_DATA[0]);
+  const [marketData, setMarketData] = useState(FALLBACK_MARKET);
+  const [selectedPair, setSelectedPair] = useState(FALLBACK_MARKET[0]);
   const [loading, setLoading] = useState(false);
   const [activeToken, setActiveToken] = useState("ETH");
   const [showWallet, setShowWallet] = useState(false);
-  const { connected, formattedAddress, connectMetaMask, disconnect } = useWallet();
+  const [walletBalance, setWalletBalance] = useState("0.0000 ETH");
+  const { connected, formattedAddress, connectMetaMask, disconnect, address } = useWallet();
+
+  // Fetch Live Prices
+  useEffect(() => {
+    const fetchMarkets = async () => {
+      try {
+        const res = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,chainlink,avalanche-2&order=market_cap_desc");
+        const data = await res.json();
+        const mapped = data.map(coin => ({
+          symbol: `${coin.symbol.toUpperCase()}/USDT`,
+          price: coin.current_price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+          change: `${coin.price_change_percentage_24h >= 0 ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`,
+          vol: `${(coin.total_volume / 1e6).toFixed(1)}M`,
+          pos: coin.price_change_percentage_24h >= 0
+        }));
+        if (mapped.length) setMarketData(mapped);
+      } catch (err) {}
+    };
+    fetchMarkets();
+    const interval = setInterval(fetchMarkets, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch Actual Wallet Balance
+  useEffect(() => {
+    if (connected && address && window.ethereum) {
+      window.ethereum.request({ method: 'eth_getBalance', params: [address, 'latest'] })
+        .then(hexString => {
+          const bal = (parseInt(hexString, 16) / 1e18).toFixed(4);
+          setWalletBalance(`${bal} ETH`);
+        }).catch(console.error);
+    }
+  }, [connected, address]);
 
   return (
     <>
@@ -177,31 +212,7 @@ export default function TradingPage() {
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#a8ff6c", animation: "pulseDot 2s infinite", boxShadow: "0 0 6px #a8ff6c" }} />
                 Testnet Mode
               </div>
-              <button onClick={() => connected ? disconnect() : connectMetaMask().catch(console.error)} style={{
-                background: connected ? "rgba(168,255,108,0.15)" : "#a8ff6c", 
-                color: connected ? "#a8ff6c" : "#000", border: connected ? "1px solid rgba(168,255,108,0.4)" : "none",
-                padding: "0.55rem 1.4rem", borderRadius: "var(--r-pill)",
-                fontWeight: 700, fontSize: 13, cursor: "pointer",
-                boxShadow: connected ? "none" : "0 0 16px rgba(168,255,108,0.4)",
-                display: "flex", alignItems: "center", gap: 6, transition: "all 0.2s"
-              }}
-                onMouseEnter={e => { 
-                  if (!connected) {
-                    e.currentTarget.style.boxShadow = "0 0 28px rgba(168,255,108,0.65)"; 
-                    e.currentTarget.style.transform = "translateY(-1px)"; 
-                  }
-                }}
-                onMouseLeave={e => { 
-                  if (!connected) {
-                    e.currentTarget.style.boxShadow = "0 0 16px rgba(168,255,108,0.4)"; 
-                    e.currentTarget.style.transform = "translateY(0)"; 
-                  }
-                }}
-                title={connected ? "Click to disconnect" : "Connect MetaMask"}
-              >
-                <Icon name="wallet" size={14} color={connected ? "#a8ff6c" : "#000"} />
-                {connected ? formattedAddress : "Connect Wallet"}
-              </button>
+              <SmartWalletButton />
             </div>
           </div>
         </div>
@@ -222,13 +233,13 @@ export default function TradingPage() {
                 <span style={{ marginLeft: "auto", fontSize: 11, color: "#333" }}>Testnet prices</span>
               </div>
               <div>
-                {MARKET_DATA.map((m, i) => (
+                {marketData.map((m, i) => (
                   <div key={m.symbol}
                     onClick={() => setActiveToken(m.symbol.split("/")[0])}
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "space-between",
                       padding: "0.85rem 1.3rem",
-                      borderBottom: i < MARKET_DATA.length - 1 ? "1px solid #0e0e0e" : "none",
+                      borderBottom: i < marketData.length - 1 ? "1px solid #0e0e0e" : "none",
                       cursor: "pointer", transition: "background 0.15s",
                       background: activeToken === m.symbol.split("/")[0] ? "rgba(168,255,108,0.04)" : "transparent"
                     }}
@@ -367,10 +378,10 @@ export default function TradingPage() {
                 Testnet Info
               </div>
               {[
-                { label: "Network",      value: "Base Sepolia" },
-                { label: "Test ETH",     value: "10.00 ETH" },
-                { label: "Portfolio",    value: "$48,230" },
-                { label: "P&L Today",   value: "+$1,204" },
+                { label: "Network",      value: connected ? "Ethereum Mainnet" : "Base Sepolia" },
+                { label: "Your Wallet",  value: connected ? walletBalance : "10.00 ETH" },
+                { label: "Portfolio",    value: connected ? "Syncing..." : "$48,230" },
+                { label: "P&L Today",   value: connected ? "0.0%" : "+$1,204" },
               ].map((r, i, arr) => (
                 <div key={r.label} style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",

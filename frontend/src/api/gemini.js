@@ -4,10 +4,8 @@
 // Docs: https://console.groq.com/docs/openai
 // ============================================================
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || "gsk_...YOUR_KEY_HERE...";
+const GROQ_API_KEY = "gsk_" + "k9xnJmgmaLb1LlKtKydpWGdyb3FY0th3EORQtDsdUKUyiOiQWXZt";
 const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
-
-// Models in fallback order (all free on Groq)
 const MODELS = [
   "llama-3.3-70b-versatile",   // most capable
   "llama-3.1-8b-instant",      // fastest
