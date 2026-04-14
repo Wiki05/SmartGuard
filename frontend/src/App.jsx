@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
-import { onAuthChange, normalizeUser, signOutUser } from "./api/authService";
+import { onAuthChange, normalizeUser, signOutUser, subscribeToUser } from "./api/authService";
 
 // Pages
 import LandingPage    from "./pages/LandingPage";
@@ -13,6 +13,9 @@ import AuditorPage    from "./pages/dashboard/AuditorPage";
 import AlertsPage     from "./pages/dashboard/AlertsPage";
 import NewsPage       from "./pages/dashboard/NewsPage";
 import TradingPage    from "./pages/dashboard/TradingPage";
+import ProfilePage    from "./pages/dashboard/ProfilePage";
+import SettingsPage   from "./pages/dashboard/SettingsPage";
+import SecurityPage   from "./pages/dashboard/SecurityPage";
 
 // Map URL path → sidebar page id
 const PATH_TO_ID = {
@@ -23,6 +26,9 @@ const PATH_TO_ID = {
   "/alerts":    "alerts",
   "/news":      "news",
   "/trading":   "trading",
+  "/profile":   "profile",
+  "/settings":  "settings",
+  "/security":  "security",
 };
 const ID_TO_PATH = Object.fromEntries(Object.entries(PATH_TO_ID).map(([k,v])=>[v,k]));
 
@@ -39,6 +45,9 @@ function DashboardContent({ user, onNavigate }) {
     alerts:    <AlertsPage    />,
     news:      <NewsPage      />,
     trading:   <TradingPage   />,
+    profile:   <ProfilePage   user={user} />,
+    settings:  <SettingsPage  user={user} />,
+    security:  <SecurityPage  user={user} />,
   };
   return pages[pageId] || pages.home;
 }
@@ -92,11 +101,33 @@ export default function App() {
 
   // Listen to Firebase auth state — fires immediately on mount
   useEffect(() => {
-    const unsub = onAuthChange((firebaseUser) => {
-      setUser(normalizeUser(firebaseUser));
-      setAuthChecked(true);
+    let unSubDoc = null;
+    const unsubAuth = onAuthChange((firebaseUser) => {
+      if (firebaseUser) {
+        // 1. Set initial auth state
+        const basic = normalizeUser(firebaseUser);
+        setUser(basic);
+        setAuthChecked(true);
+
+        // 2. Subscribe to real-time Firestore data
+        if (unSubDoc) unSubDoc();
+        unSubDoc = subscribeToUser(firebaseUser.uid, (dbData) => {
+          setUser(prev => {
+            if (!prev) return { ...normalizeUser(firebaseUser), ...dbData };
+            return { ...prev, ...dbData };
+          });
+        });
+      } else {
+        if (unSubDoc) unSubDoc();
+        setUser(null);
+        setAuthChecked(true);
+      }
     });
-    return unsub; // cleanup listener on unmount
+
+    return () => {
+      unsubAuth();
+      if (unSubDoc) unSubDoc();
+    };
   }, []);
 
   const handleLogin  = (u) => { if (u) setUser(u); };
@@ -110,7 +141,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"          element={<LandingPage />} />
+        <Route path="/"          element={<LandingPage user={user} />} />
         <Route path="/login"     element={user ? <Navigate to="/dashboard" replace /> : <AuthPage onLogin={handleLogin} />} />
         {/* All dashboard routes share the same shell */}
         <Route path="/dashboard" element={dashEl} />
@@ -120,6 +151,9 @@ export default function App() {
         <Route path="/alerts"    element={dashEl} />
         <Route path="/news"      element={dashEl} />
         <Route path="/trading"   element={dashEl} />
+        <Route path="/profile"   element={dashEl} />
+        <Route path="/settings"  element={dashEl} />
+        <Route path="/security"  element={dashEl} />
         <Route path="*"          element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -9,9 +9,13 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { UAParser } from "ua-parser-js";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -37,6 +41,32 @@ function mapFirebaseError(code) {
   }
 }
 
+/* ── Record Session (Real-time) ── */
+async function recordSession(firebaseUser) {
+  const parser = new UAParser();
+  const result = parser.getResult();
+  const deviceLabel = `${result.browser.name || "Unknown Browser"} on ${result.os.name || "Unknown OS"}`;
+  const sessionId = Math.random().toString(36).slice(2, 9);
+  
+  // Store locally to identify "this" session
+  sessionStorage.setItem("sm_session_id", sessionId);
+
+  const ref = doc(db, "users", firebaseUser.uid);
+  await updateDoc(ref, {
+    lastSeen: serverTimestamp(),
+    sessions: arrayUnion({
+      id: sessionId,
+      label: deviceLabel,
+      lastActive: Date.now(),
+      userAgent: navigator.userAgent,
+    })
+  }).catch(() => {}); // Ignore if doc doesn't exist yet
+}
+
+export function getCurrentSessionId() {
+  return sessionStorage.getItem("sm_session_id");
+}
+
 /* ── Ensure Firestore user doc exists ── */
 async function ensureUserDoc(firebaseUser, displayName) {
   const ref = doc(db, "users", firebaseUser.uid);
@@ -49,14 +79,21 @@ async function ensureUserDoc(firebaseUser, displayName) {
       photoURL:  firebaseUser.photoURL || null,
       createdAt: serverTimestamp(),
       plan:      "free",
+      sessions:  [],
+      settings: {
+        notifications: { email: true, browser: true, security: true, newFeatures: false },
+        explorer: "Etherscan"
+      }
     });
   }
+  await recordSession(firebaseUser);
 }
 
 /* ── Sign In with email ── */
 export async function signInWithEmail(email, password) {
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    await recordSession(cred.user);
     return { user: cred.user, error: null };
   } catch (e) {
     return { user: null, error: mapFirebaseError(e.code) };
@@ -109,5 +146,58 @@ export function normalizeUser(firebaseUser) {
     email:    firebaseUser.email,
     name:     firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
     photoURL: firebaseUser.photoURL || null,
+    metadata: {
+        lastSignInTime: firebaseUser.metadata.lastSignInTime,
+        creationTime: firebaseUser.metadata.creationTime,
+    }
   };
+}
+
+/* ── Real-time User Listener ── */
+export function subscribeToUser(uid, callback) {
+  return onSnapshot(doc(db, "users", uid), (snap) => {
+    if (snap.exists()) callback(snap.data());
+  });
+}
+
+/* ── Update Profile (Auth + Firestore) ── */
+export async function updateUserProfile(uid, data) {
+  try {
+    const user = auth.currentUser;
+    if (user && data.name) {
+      await updateProfile(user, { displayName: data.name, photoURL: data.photoURL });
+    }
+    await updateDoc(doc(db, "users", uid), data);
+    return { error: null };
+  } catch (e) {
+    return { error: "Failed to update profile." };
+  }
+}
+
+/* ── Update Settings ── */
+export async function updateUserSettings(uid, settings) {
+    try {
+        await updateDoc(doc(db, "users", uid), { settings });
+        return { error: null };
+    } catch (e) {
+        return { error: "Failed to update settings." };
+    }
+}
+
+/* ── Change Password (Re-auth required) ── */
+export async function updateUserPassword(currentPassword, newPassword) {
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("No user");
+    
+    // Re-authenticate
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    
+    // Update
+    await updatePassword(user, newPassword);
+    return { error: null };
+  } catch (e) {
+    return { error: mapFirebaseError(e.code) || "Password update failed." };
+  }
 }

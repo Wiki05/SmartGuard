@@ -170,9 +170,9 @@ function StatItem({ value, suffix = "", label, active, color }) {
 }
 
 /* ════════════════════════════════════════════════════ */
-export default function LandingPage() {
+export default function LandingPage({ user }) {
   const navigate = useNavigate();
-  const goAuth = () => navigate("/login");
+  const goAuth = () => navigate(user ? "/dashboard" : "/login");
 
   const [scrolled, setScrolled]       = useState(false);
   const [statsVisible, setStatsVisible] = useState(false);
@@ -259,7 +259,7 @@ export default function LandingPage() {
 
         {/* CTAs */}
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button onClick={() => navigate("/login")} style={{
+          <button onClick={() => navigate(user ? "/dashboard" : "/login")} style={{
             background: "#a8ff6c", color: "#000",
             border: "none", padding: "0.48rem 1.3rem", borderRadius: "var(--r-pill)",
             fontWeight: 700, fontSize: 13,
@@ -323,7 +323,7 @@ export default function LandingPage() {
           display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap",
           animation: "fadeInUp 0.8s 0.3s ease both"
         }}>
-          <button onClick={() => navigate("/login")} style={{
+          <button onClick={() => navigate(user ? "/dashboard" : "/login")} style={{
             background: "#a8ff6c", color: "#000",
             border: "none", padding: "1rem 2.8rem", borderRadius: "var(--r-pill)",
             fontWeight: 800, fontSize: 16, cursor: "pointer",
