@@ -184,6 +184,16 @@ export async function updateUserSettings(uid, settings) {
     }
 }
 
+/* ── Update Security (2FA, etc) ── */
+export async function updateUserSecurity(uid, security) {
+  try {
+    await updateDoc(doc(db, "users", uid), { security });
+    return { error: null };
+  } catch (e) {
+    return { error: "Failed to update security settings." };
+  }
+}
+
 /* ── Change Password (Re-auth required) ── */
 export async function updateUserPassword(currentPassword, newPassword) {
   try {

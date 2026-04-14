@@ -5,15 +5,21 @@ Serves the trained GraphCodeBERT model for smart contract vulnerability detectio
 Run from any directory:  uvicorn main:app --reload --port 8000
 """
 
-import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-
+import os
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+from pydantic import BaseModel
 from pathlib import Path
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import torch
 from transformers import AutoTokenizer, BertForSequenceClassification
+
+# Load environment variables
+load_dotenv()
 
 # -- Absolute paths (works regardless of cwd) ----------------------------------
 BASE_DIR       = Path(__file__).parent
@@ -176,6 +182,61 @@ async def analyze_code(code: str = Form(...)):
         "device":     str(device),
     }
 
+
+# -- Email Logic ---------------------------------------------------------------
+class EmailAlertRequest(BaseModel):
+    email: str
+    token: str
+    price: str
+    condition: str
+
+@app.post("/api/alert/email")
+async def send_email_alert(req: EmailAlertRequest):
+    """Sends a real-time price alert to the user's email."""
+    smtp_server   = os.getenv("SMTP_SERVER")
+    smtp_port     = os.getenv("SMTP_PORT", "465")
+    smtp_user     = os.getenv("SMTP_USER")
+    smtp_pass     = os.getenv("SMTP_PASS")
+    sender_email  = os.getenv("SENDER_EMAIL", smtp_user)
+
+    subject = f"🔔 SmartGuard Alert: {req.token} reached {req.condition} target!"
+    body = f"""
+    <html>
+      <body style="font-family: sans-serif; background: #030303; color: #fff; padding: 20px;">
+        <h2 style="color: #a8ff6c;">SmartGuard Price Alert</h2>
+        <p>Your alert for <b>{req.token}</b> has been triggered.</p>
+        <div style="background: #0a0a0a; border: 1px solid #141414; padding: 15px; border-radius: 12px;">
+          <p><b>Condition:</b> {req.condition}</p>
+          <p><b>Target Price:</b> {req.price}</p>
+        </div>
+        <p style="color: #555; font-size: 12px; margin-top: 20px;">
+          Stay safe and monitor your positions real-time on SmartGuard.
+        </p>
+      </body>
+    </html>
+    """
+
+    if not all([smtp_server, smtp_user, smtp_pass]):
+        print(f"[SIMULATION] Email alert to {req.email}: {req.token} {req.condition}")
+        return {"status": "simulated", "message": "Email logged to console (SMTP credentials missing)"}
+
+    try:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"]    = sender_email
+        message["To"]      = req.email
+        message.attach(MIMEText(body, "html"))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(smtp_server, int(smtp_port), context=context) as server:
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(sender_email, req.email, message.as_string())
+        
+        print(f"[OK] Email alert sent to {req.email}")
+        return {"status": "sent", "message": "Alert email delivered."}
+    except Exception as e:
+        print(f"[ERROR] Email failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send email alert.")
 
 # -- Entry point ---------------------------------------------------------------
 if __name__ == "__main__":

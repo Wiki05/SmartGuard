@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { callGemini } from "../../api/gemini";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { callGemini, BACKEND_URL } from "../../api/gemini";
 
 /* ── Coin list (CoinGecko IDs) ──────────────────────────────────── */
 const COINS = [
@@ -42,7 +42,6 @@ function Spark({ data = [], color = "#a8ff6c", w = 80, h = 30 }) {
   const c = isUp ? "#00d4aa" : "#ff6b8a";
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none">
-      <polygon points={fill} fill={`${c}15`} />
       <polyline points={pts} stroke={c} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -127,21 +126,47 @@ function PriceCard({ p }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════ */
-export default function AlertsPage() {
+export default function AlertsPage({ user }) {
   const [prices,   setPrices]   = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [fearGreed,setFearGreed]= useState({ value: 50, label: "Neutral", color: "#facc15" });
   const [alerts,   setAlerts]   = useState([
-    { id: 1, token: "ETH",  type: "price_above", value: "4000",  active: true,  triggered: false, color: "#627eea" },
-    { id: 2, token: "BTC",  type: "price_below", value: "60000", active: true,  triggered: false, color: "#f7931a" },
-    { id: 3, token: "SOL",  type: "change_24h",  value: "10",    active: false, triggered: false, color: "#9945ff" },
+    { id: 1, token: "ETH",  type: "price_above", value: "4000",  active: true,  triggered: false, color: "#627eea", lastTriggered: 0 },
+    { id: 2, token: "BTC",  type: "price_below", value: "60000", active: true,  triggered: false, color: "#f7931a", lastTriggered: 0 },
+    { id: 3, token: "SOL",  type: "change_24h",  value: "10",    active: false, triggered: false, color: "#9945ff", lastTriggered: 0 },
   ]);
+  const alertCooldown = useRef({}); // token-type -> lastSentTimestamp
   const [newToken,   setNewToken]   = useState("BTC");
   const [newType,    setNewType]    = useState("price_above");
   const [newValue,   setNewValue]   = useState("");
   const [aiSummary,  setAiSummary]  = useState("");
   const [aiLoading,  setAiLoading]  = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
+
+  /* ── Send email alert via backend ── */
+  const triggerEmailAlert = async (a, currentPrice) => {
+    const key = `${a.token}-${a.type}`;
+    const now = Date.now();
+    // 30 minute cooldown per distinct alert type
+    if (alertCooldown.current[key] && now - alertCooldown.current[key] < 1800000) return;
+
+    alertCooldown.current[key] = now;
+    try {
+      await fetch(`${BACKEND_URL}/api/alert/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user?.email || "smartguard@example.com",
+          token: a.token,
+          price: fmt(currentPrice),
+          condition: ALERT_TYPES.find(t => t.id === a.type)?.label || a.type
+        })
+      });
+      console.log(`[Alert] Email sent for ${a.token}`);
+    } catch (err) {
+      console.error("[Alert] Failed to send email:", err);
+    }
+  };
 
   /* ── Fetch live prices from CoinGecko (free API) ── */
   const fetchPrices = useCallback(async () => {
@@ -173,18 +198,23 @@ export default function AlertsPage() {
       setAlerts(prev => prev.map(a => {
         const p = merged.find(x => x.symbol === a.token);
         if (!p || !a.active) return a;
+        
         let triggered = false;
         if (a.type === "price_above" && p.price > parseFloat(a.value)) triggered = true;
         if (a.type === "price_below" && p.price < parseFloat(a.value)) triggered = true;
         if (a.type === "change_24h"  && Math.abs(p.change24h) > parseFloat(a.value)) triggered = true;
+
+        if (triggered && !a.triggered) {
+          triggerEmailAlert(a, p.price);
+        }
+
         return { ...a, triggered };
       }));
 
     } catch {
-      // Keep existing data on error; mark as loaded
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   /* ── Fetch Fear & Greed from alternative.me ── */
   const fetchFearGreed = useCallback(async () => {

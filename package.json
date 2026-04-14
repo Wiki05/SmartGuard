@@ -1,0 +1,11 @@
+{
+  "name": "smart-guard-root",
+  "version": "1.0.0",
+  "description": "Root controller for Smart Guard",
+  "scripts": {
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && uvicorn main:app --reload --port 8000",
+    "dev": "npm run frontend",
+    "start-backend": "npm run backend"
+  }
+}

@@ -1,16 +1,25 @@
 import { useState } from "react";
 import Icon from "../../components/Icon";
 import { RevealDiv } from "../../components/ScrollReveal";
-import { updateUserPassword } from "../../api/authService";
+import { updateUserPassword, updateUserSecurity } from "../../api/authService";
 
 export default function SecurityPage({ user }) {
   const [showPassForm, setShowPassForm] = useState(false);
   const [passData, setPassData] = useState({ current: "", new: "", confirm: "" });
   const [passLoading, setPassLoading] = useState(false);
   const [passMsg, setPassMsg] = useState({ text: "", type: "" });
+  const [secLoading, setSecLoading] = useState(false);
 
   const sessions = user?.sessions || [];
   const currentSessionId = sessionStorage.getItem("sm_session_id");
+  const twoFactorEnabled = user?.security?.twoFactor || false;
+
+  const toggle2FA = async () => {
+    if (!user?.uid) return;
+    setSecLoading(true);
+    await updateUserSecurity(user.uid, { ...user.security, twoFactor: !twoFactorEnabled });
+    setSecLoading(false);
+  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -119,7 +128,25 @@ export default function SecurityPage({ user }) {
                   <div style={{ fontWeight: 700, color: "#eee", fontSize: "14px" }}>Two-Factor Authentication (2FA)</div>
                   <div style={{ fontSize: "12px", color: "#444" }}>Adds an extra layer of security to your account.</div>
                 </div>
-                <span style={{ fontSize: "10px", fontWeight: 700, color: "#444", border: "1px solid #222", padding: "3px 8px", borderRadius: "12px" }}>COMING SOON</span>
+                <button 
+                  onClick={toggle2FA}
+                  disabled={secLoading}
+                  style={{
+                    width: 44, height: 22, borderRadius: 20, 
+                    background: twoFactorEnabled ? "#a8ff6c" : "#1a1a1a",
+                    border: "none", cursor: "pointer", position: "relative",
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    opacity: secLoading ? 0.6 : 1,
+                    boxShadow: twoFactorEnabled ? "0 0 15px rgba(168,255,108,0.2)" : "none"
+                  }}
+                >
+                  <div style={{ 
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    position: "absolute", top: 3, left: twoFactorEnabled ? 25 : 3,
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                  }} />
+                </button>
               </div>
             </div>
           </div>

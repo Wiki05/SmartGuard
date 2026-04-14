@@ -42,7 +42,7 @@ function DashboardContent({ user, onNavigate }) {
     chat:      <ChatPage      user={user} />,
     generator: <GeneratorPage />,
     auditor:   <AuditorPage   user={user} />,
-    alerts:    <AlertsPage    />,
+    alerts:    <AlertsPage    user={user} />,
     news:      <NewsPage      />,
     trading:   <TradingPage   />,
     profile:   <ProfilePage   user={user} />,
