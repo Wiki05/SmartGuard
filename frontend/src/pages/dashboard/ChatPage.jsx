@@ -106,6 +106,27 @@ export default function ChatPage({ user }) {
   const textareaRef = useRef(null);
 
   useEffect(() => {
+    // Check for audit context from AuditorPage
+    const contextStr = sessionStorage.getItem("smartguard_audit_context");
+    if (contextStr) {
+      try {
+        const ctx = JSON.parse(contextStr);
+        setMessages([
+          {
+            role: "assistant",
+            content: `🛡️ **Audit Context Loaded**\n\nI've received the security audit for your contract. Here's a quick summary:\n\n**Verdict:** ${ctx.verdict}\n**Score:** ${ctx.score}/100\n**Engine:** ${ctx.model}\n**Issues:** ${ctx.issues?.length || 0} detected.\n\nHow can I help you dive deeper into these findings?`
+          },
+          {
+            role: "assistant",
+            content: `**Original AI Analysis:**\n${ctx.explanation}`
+          }
+        ]);
+        sessionStorage.removeItem("smartguard_audit_context");
+      } catch (e) {
+        console.error("Failed to parse audit context", e);
+      }
+    }
+
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 

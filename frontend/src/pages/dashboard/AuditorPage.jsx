@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Icon from "../../components/Icon";
 import { callGemini, BACKEND_URL } from "../../api/gemini";
 import { saveAuditResult } from "../../api/firestoreService";
@@ -109,6 +110,7 @@ export default function AuditorPage({ prefillCode, user }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [tab, setTab] = useState("paste");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const analyze = async () => {
     if (!code.trim()) { setError("Please paste your Solidity code first."); return; }
@@ -120,46 +122,70 @@ export default function AuditorPage({ prefillCode, user }) {
       const formData = new FormData();
       formData.append("code", code);
       const res = await fetch(`${BACKEND_URL}/analyze`, { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Backend not reachable");
+      if (!res.ok) {
+        let errMsg = "Backend returned an error.";
+        try {
+          const errData = await res.json();
+          errMsg = errData.detail || errMsg;
+        } catch { }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       setResult(data);
       // Save to Firestore scans collection
       if (user?.uid) await saveAuditResult(user.uid, user.email, code, data);
 
       setAiLoading(true);
-      const prompt = `Contract scan result: Score ${data.score}/100, Verdict: ${data.verdict}, Issues: ${JSON.stringify(data.issues)}\n\nContract code:\n${code}`;
+      // Construct a prompt specifically grounded in the new Tri-Layer findings
+      const prompt = `Review this Smart Contract using our Hybrid Security Architecture:
+
+[FINAL VERDICT]:
+- Base Security Score: ${data.final_judgment.score}/100
+- Risk Level: ${data.final_judgment.risk_level}
+- Analysis Mode: ${data.final_judgment.analysis_mode}
+
+[NEURAL THREAT MODEL (${data.ml_signal.model_name})]:
+- Binary Classification: ${data.ml_signal.verdict}
+- Neural Confidence: ${data.ml_signal.confidence * 100}%
+
+[STATIC ANALYSIS]:
+- Identified Vulnerabilities: ${JSON.stringify(data.static_analysis.issues)}
+
+CONTRACT CODE:
+${code}
+
+Please provide a developer-friendly explanation of these combined findings and remediation steps.`;
+      
       const explanation = await callGemini(prompt, SYSTEM_PROMPT);
       setAiExplanation(explanation);
     } catch (e) {
-      // Mock result for demo when backend is offline
-      const mockResult = {
-        score: 32,
-        verdict: "VULNERABLE",
-        confidence: 0.91,
-        issues: [
-          { name: "Reentrancy Attack", risk: "HIGH", desc: "The withdraw function updates state after an external call, allowing attackers to drain funds via recursive calls.", line: 14 },
-          { name: "Missing Access Control", risk: "MEDIUM", desc: "Critical functions lack owner-only restrictions, allowing any address to interact.", line: null },
-          { name: "Integer Overflow Risk", risk: "LOW", desc: "Balance calculations could overflow in older Solidity versions (< 0.8.0).", line: 8 }
-        ]
-      };
-      setResult(mockResult);
-      // Still get AI explanation for demo
-      try {
-        setAiLoading(true);
-        const explanation = await callGemini(
-          `Analyze this Solidity contract for vulnerabilities and provide detailed fixes:\n${code}`,
-          SYSTEM_PROMPT
-        );
-        setAiExplanation(explanation);
-      } catch { setAiExplanation("AI explanation unavailable. Please check your Gemini API key."); }
+      console.error(e);
+      setError(e.message || "Failed to analyze contract. Please verify backend is running.");
     } finally {
       setLoading(false);
       setAiLoading(false);
     }
   };
 
+  const continueToChat = () => {
+    if (!result) return;
+    const context = {
+      code,
+      verdict: result.final_judgment.verdict,
+      score: result.final_judgment.score,
+      risk_level: result.final_judgment.risk_level,
+      issues: result.static_analysis.issues,
+      explanation: aiExplanation,
+      model_name: "Hybrid " + result.ml_signal.model_name,
+      analysis_mode: result.final_judgment.analysis_mode,
+      timestamp: new Date().toISOString()
+    };
+    sessionStorage.setItem("smartguard_audit_context", JSON.stringify(context));
+    navigate("/aichat");
+  };
+
   const scoreColor = result
-    ? result.score > 70 ? "#00d4aa" : result.score > 40 ? "#ffab40" : "#ff6b8a"
+    ? result.final_judgment.score > 70 ? "#00d4aa" : result.final_judgment.score > 40 ? "#ffab40" : "#ff6b8a"
     : "#4f8ef7";
 
   return (
@@ -294,83 +320,161 @@ export default function AuditorPage({ prefillCode, user }) {
           </button>
         </div>
 
-
-        {/* RIGHT — Results */}
+        {/* RIGHT — Audit Results Dashboard */}
         {result && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", animation: "slideInRight 0.4s ease" }}>
-            {/* Score Card */}
-            <div style={{
-              background: "var(--card)", border: `1px solid ${scoreColor}30`,
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem", animation: "slideInRight 0.4s ease" }}>
+            
+            {/* TIER 1: FINAL AUDIT RESULT (Hero View) */}
+            <div style={{ 
+              background: "var(--card)", border: "1px solid var(--border)", 
               borderRadius: "var(--r-xl)", padding: "1.5rem",
-              display: "flex", gap: "1.5rem", alignItems: "center",
-              boxShadow: `0 0 30px ${scoreColor}10`
+              boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
             }}>
-              <ScoreRing score={result.score} size={90} />
-              <div>
-                <span className="badge" style={{
-                  background: result.verdict === "VULNERABLE" ? "rgba(255,107,138,0.15)" : "rgba(0,212,170,0.15)",
-                  color: result.verdict === "VULNERABLE" ? "#ff6b8a" : "#00d4aa",
-                  border: `1px solid ${result.verdict === "VULNERABLE" ? "rgba(255,107,138,0.25)" : "rgba(0,212,170,0.25)"}`,
-                  marginBottom: 8, display: "inline-flex"
-                }}>
-                  {result.verdict === "VULNERABLE" ? "⚠ " : "✓ "}{result.verdict}
-                </span>
-                <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>Security Score</div>
-                <div style={{ color: "var(--muted)", fontSize: 13 }}>
-                  Confidence: {Math.round((result.confidence || 0.85) * 100)}% · {result.issues?.length || 0} issues found
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.2rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text)", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                  <Icon name="shield" size={14} color="#4f8ef7" />
+                  FINAL AUDIT VERDICT
                 </div>
+                <div style={{ 
+                  padding: "4px 10px", borderRadius: 6, background: "rgba(79,142,247,0.1)", 
+                  border: "1px solid rgba(79,142,247,0.2)", color: "#4f8ef7", fontSize: 10, fontWeight: 700 
+                }}>
+                  {result.final_judgment.analysis_mode}
+                </div>
+              </div>
 
-                {/* Score bar */}
-                <div style={{ marginTop: 10, background: "var(--bg3)", borderRadius: 4, height: 4, width: 200, overflow: "hidden" }}>
-                  <div style={{
-                    height: "100%", width: `${result.score}%`,
-                    background: `linear-gradient(90deg, #ff6b8a, ${scoreColor})`,
-                    borderRadius: 4, transition: "width 1s ease"
-                  }} />
+              {/* Main Score & Verdict */}
+              <div style={{ display: "flex", gap: "1.5rem", alignItems: "center", padding: "1rem", background: "var(--bg3)", borderRadius: "var(--r-lg)" }}>
+                <ScoreRing score={result.final_judgment.score} size={85} />
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>
+                    Official Outcome
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{ 
+                      fontSize: 18, fontWeight: 800, color: result.final_judgment.verdict === "SECURE" ? "#00d4aa" : result.final_judgment.verdict === "WARNING" ? "#ffab40" : "#ff6b8a"
+                    }}>
+                      {result.final_judgment.verdict === "SECURE" ? "✓ LIKELY SAFE" : 
+                       result.final_judgment.verdict === "WARNING" ? "⚠ WARNING" : "⨯ VULNERABLE"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--text2)", fontWeight: 500 }}>
+                      ({result.final_judgment.risk_level})
+                    </span>
+                  </div>
+                  <div style={{ color: "var(--text2)", fontSize: 13 }}>
+                    Calculated using Hybrid Neural & Static Severity matrices.
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Issues */}
-            {result.issues?.length > 0 && (
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                  <Icon name="alert" size={14} color="var(--danger)" />
-                  Vulnerabilities Detected ({result.issues.length})
+            {/* TIER 2 & 3: Transparent Data Split */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              
+              {/* TIER 2: ML Signal */}
+              <div style={{ 
+                background: "var(--bg3)", border: "1px solid rgba(124,92,252,0.2)", 
+                borderRadius: "var(--r-lg)", padding: "1rem"
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#7c5cfc", textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="zap" size={14} color="#7c5cfc" /> Raw ML Signal
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {result.issues.map((issue, i) => <IssueCard key={i} issue={issue} />)}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>Binary Prediction</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: result.ml_signal.verdict === "SAFE" ? "#00d4aa" : "#ff6b8a" }}>
+                    {result.ml_signal.verdict}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>Neural Confidence</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
+                    {Math.round((result.ml_signal.confidence || 0) * 100)}%
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                  Model: {result.ml_signal.model_name}
                 </div>
               </div>
-            )}
 
-            {/* AI Explanation */}
-            <div style={{
-              background: "var(--card)",
-              border: "1px solid rgba(0,212,170,0.2)",
-              borderRadius: "var(--r-xl)", padding: "1.2rem",
-              flex: 1
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "var(--teal)", fontWeight: 700, fontSize: 14 }}>
-                <div style={{ animation: aiLoading ? "spin 2s linear infinite" : "none" }}>
-                  <Icon name="shield" size={16} color="var(--teal)" />
+              {/* TIER 3: Static Analysis Findings */}
+              <div style={{ 
+                background: "var(--bg3)", border: "1px solid rgba(255,171,64,0.2)", 
+                borderRadius: "var(--r-lg)", padding: "1rem"
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#ffab40", textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="search" size={14} color="#ffab40" /> Static Findings
                 </div>
-                AI Security Analysis
-                {aiLoading && <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400, marginLeft: 4 }}>Generating...</span>}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginBottom: 2 }}>Concrete Vulnerabilities</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
+                    {result.static_analysis.finding_count} Detected
+                  </div>
+                </div>
+                {result.static_analysis.finding_count > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 120, overflowY: "auto" }}>
+                    {result.static_analysis.issues.map((issue, i) => <IssueCard key={i} issue={issue} />)}
+                  </div>
+                ) : (
+                  <div style={{ padding: "0.5rem", background: "rgba(0, 212, 170, 0.05)", borderRadius: 6, color: "#00d4aa", fontSize: 12, textAlign: "center" }}>
+                    No rule violations detected.
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* 2. AI SECTION — SECURITY EXPLANATION & GUIDANCE */}
+            <div style={{ 
+              background: "rgba(0,212,170,0.03)", border: "1px solid rgba(0,212,170,0.15)", 
+              borderRadius: "var(--r-xl)", padding: "1.5rem",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.1)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "1rem" }}>
+                <div style={{ animation: aiLoading ? "spin 2s linear infinite" : "none" }}>
+                  <Icon name="shield" size={16} color="#00d4aa" />
+                </div>
+                <div style={{ fontWeight: 700, color: "var(--text)", fontSize: 14 }}>
+                  AI SECURITY ANALYSIS & REMEDIATION
+                  {aiLoading && <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400, marginLeft: 8 }}>Thinking...</span>}
+                </div>
+              </div>
+
               {aiLoading ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {[100, 80, 95, 70].map((w, i) => (
-                    <div key={i} className="skeleton" style={{ height: 14, width: `${w}%` }} />
-                  ))}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="skeleton" style={{ height: 12, width: "100%" }} />
+                  <div className="skeleton" style={{ height: 12, width: "90%" }} />
+                  <div className="skeleton" style={{ height: 12, width: "95%" }} />
+                  <div className="skeleton" style={{ height: 12, width: "40%" }} />
                 </div>
               ) : (
-                <div style={{
-                  color: "var(--text2)", fontSize: 13, lineHeight: 1.8,
-                  whiteSpace: "pre-wrap", maxHeight: 320, overflowY: "auto"
-                }}>
-                  {aiExplanation}
-                </div>
+                <>
+                  <div style={{ 
+                    color: "var(--text2)", fontSize: 13, lineHeight: 1.8, 
+                    whiteSpace: "pre-wrap", maxHeight: 350, overflowY: "auto",
+                    paddingRight: 10
+                  }}>
+                    {aiExplanation}
+                  </div>
+                  
+                  {aiExplanation && (
+                    <button
+                      onClick={continueToChat}
+                      style={{
+                        marginTop: "1.5rem", width: "100%", padding: "1rem",
+                        background: "linear-gradient(135deg, rgba(124,92,252,0.1), rgba(79,142,247,0.1))",
+                        border: "1px solid rgba(124,92,252,0.3)",
+                        borderRadius: "var(--r-md)", color: "#7c5cfc", fontWeight: 700, fontSize: 14,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                        cursor: "pointer", transition: "all 0.2s",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.1)"
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = "#7c5cfc"; e.currentTarget.style.background = "rgba(124,92,252,0.15)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(124,92,252,0.3)"; e.currentTarget.style.background = "rgba(124,92,252,0.1)"; }}
+                    >
+                      <Icon name="chat" size={16} color="#7c5cfc" />
+                      Consult Expert AI Assistant
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

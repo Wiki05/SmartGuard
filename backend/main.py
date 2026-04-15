@@ -54,25 +54,17 @@ tokenizer = None
 model     = None
 model_ok  = False
 
-# Check if we are running in a memory-constrained environment like Render Free Tier
-is_memory_constrained = os.environ.get("RENDER", "false").lower() == "true" or os.environ.get("LOW_MEMORY", "false").lower() == "true"
-
+# Hugging Face Spaces gives us 16GB of RAM for free, so we no longer need the memory skip!
 try:
-    if is_memory_constrained:
-        print("[WARNING] Memory-constrained environment detected (Render Free Tier).")
-        print("[WARNING] Skipping 500MB ML model load to prevent Out-Of-Memory crash.")
-        print("[WARNING] SmartGuard will automatically fall back to fast heuristic scanning.")
-        raise MemoryError("ML model disabled on Render Free Tier to avoid OOM.")
-
     import gc
-    from transformers import BertConfig
+    from transformers import RobertaConfig, RobertaForSequenceClassification
     print("[*] Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(str(TOKENIZER_PATH))
 
     print("[*] Loading model weights...")
-    # Initialize empty model via config (avoids heavy 440MB base weights download into RAM)
-    config = BertConfig.from_pretrained("bert-base-uncased", num_labels=2)
-    model = BertForSequenceClassification(config)
+    # Initialize empty model via GraphCodeBERT config (matches 50265 vocab and 514 positions)
+    config = RobertaConfig.from_pretrained("microsoft/graphcodebert-base", num_labels=2)
+    model = RobertaForSequenceClassification(config)
 
     # Load local state_dict directly (mmap=True saves massive RAM on PyTorch 2.1+)
     try:
@@ -97,19 +89,19 @@ except Exception as e:
         print("   The /analyze endpoint is falling back to heuristic scanning.")
 
 
-# -- Vulnerability heuristics --------------------------------------------------
+# -- Vulnerability heuristics (Static Analysis) --------------------------------
 VULN_PATTERNS = [
     {
-        "check": lambda c: any(t in c for t in [".call{value:", "msg.sender.call"]) and "balances[msg.sender" in c,
-        "name":  "Reentrancy Attack",
+        "check": lambda c: any(t in c for t in [".call{value:", ".send(", ".transfer("]) and any(t in c for t in ["balances[", "shares[", "user["]),
+        "name":  "Reentrancy Risk",
         "risk":  "HIGH",
-        "desc":  "State variables are updated after an external call. An attacker can re-enter the function and drain funds. Fix: use the Checks-Effects-Interactions pattern.",
+        "desc":  "External call made while interacting with user balances/shares. Ensure the Checks-Effects-Interactions pattern is followed, updating state BEFORE the call.",
     },
     {
-        "check": lambda c: "function " in c and "onlyOwner" not in c and "require(msg.sender ==" not in c,
+        "check": lambda c: "function " in c and "onlyOwner" not in c and "require(msg.sender ==" not in c and "public " in c,
         "name":  "Missing Access Control",
         "risk":  "MEDIUM",
-        "desc":  "Critical functions lack ownership or role-based checks. Any address can call privileged operations. Fix: add an onlyOwner modifier or OpenZeppelin AccessControl.",
+        "desc":  "Critical public functions may lack ownership or role-based checks. Anyone could potentially call them.",
     },
     {
         "check": lambda c: any(t in c for t in ["pragma solidity ^0.7", "pragma solidity ^0.6", "pragma solidity ^0.5"]),
@@ -143,6 +135,30 @@ VULN_PATTERNS = [
     },
 ]
 
+import re
+
+def is_valid_solidity(code: str) -> bool:
+    """Validates that the input is actually a Solidity smart contract."""
+    # Remove comments to avoid false positives in commented code
+    clean_code = re.sub(r'//.*', '', code)
+    clean_code = re.sub(r'/\*.*?\*/', '', clean_code, flags=re.DOTALL)
+    
+    # Valid Solidity MUST define at least a contract, library, or interface
+    if not re.search(r'\b(contract|library|interface)\s+[a-zA-Z_][a-zA-Z0-9_]*', clean_code):
+        return False
+        
+    # Extra safety: Reject if it contains obvious Java/Python/JS/C++ structures
+    if re.search(r'\b(public\s+class|public\s+static\s+void\s+main|console\.log|def\s+[a-zA-Z0-9_]+\s*\(|import\s+java\.|import\s+React|#include\s*<)\b', clean_code):
+        return False
+
+    return True
+
+def get_risk_level(score: int, issue_count: int) -> str:
+    if score >= 85 and issue_count == 0: return "Low Risk"
+    if score >= 70: return "Safe"
+    if score >= 50: return "Moderate Risk"
+    if score >= 30: return "Warning"
+    return "High Risk"
 
 def heuristic_issues(code: str) -> list:
     found = []
@@ -175,59 +191,95 @@ async def health():
 async def analyze_code(code: str = Form(...)):
     if not code.strip():
         raise HTTPException(status_code=400, detail="No contract code provided.")
+        
+    if not is_valid_solidity(code):
+        raise HTTPException(status_code=400, detail="Invalid input: Please provide a valid Solidity smart contract (.sol). Ensure it contains a 'contract', 'library', or 'interface' definition.")
 
     # 1. Always grab rule-based heuristic issues first
     issues = heuristic_issues(code)
 
-    # 2. If the AI model failed to load (e.g. Render Free Tier), purely use heuristics as fallback
-    if not model_ok:
-        is_vulnerable = len(issues) > 0
-        return {
-            "verdict":    "VULNERABLE" if is_vulnerable else "SAFE",
-            "score":      30 if is_vulnerable else 100,
-            "confidence": 0.95,
-            "issues":     issues,
-            "model":      "SmartGuard-Heuristics (Fallback)",
-            "device":     "cpu",
-        }
-
     # 3. If AI model IS loaded, run deep ML inference
-    inputs = tokenizer(
-        code,
-        return_tensors="pt",
-        truncation=True,
-        padding=True,
-        max_length=512
-    ).to(device)
+    if model_ok:
+        inputs = tokenizer(
+            code,
+            return_tensors="pt",
+            truncation=True,
+            padding=True,
+            max_length=512
+        ).to(device)
 
-    with torch.no_grad():
-        outputs = model(**inputs)
-        probs   = torch.nn.functional.softmax(outputs.logits, dim=-1)
-        pred    = torch.argmax(probs, dim=-1).item()   # 0=SAFE, 1=VULNERABLE
-        conf    = float(probs[0][pred].item())
+        with torch.no_grad():
+            outputs = model(**inputs)
+            probs   = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            pred    = torch.argmax(probs, dim=-1).item()   # 0=SAFE, 1=VULNERABLE
+            conf    = float(probs[0][pred].item())
 
-    is_vulnerable  = pred == 1
-    raw_safe_prob  = float(probs[0][0].item())
-    score          = max(0, min(100, int(raw_safe_prob * 100)))
+        is_vulnerable  = pred == 1
+        raw_safe_prob  = float(probs[0][0].item())
+        ml_verdict     = "VULNERABLE" if is_vulnerable else "SAFE"
+        ml_confidence  = round(conf, 4)
+        model_str      = "SmartGuard-BERT v1"
+        device_str     = str(device)
+    else:
+        is_vulnerable  = len(issues) > 0
+        ml_verdict     = "VULNERABLE" if is_vulnerable else "SAFE"
+        ml_confidence  = 0.95
+        model_str      = "SmartGuard-Heuristics"
+        device_str     = "cpu"
 
-    # If the model thinks it's vulnerable, report all issues. If not, ignore heuristic warnings.
-    final_issues = issues if is_vulnerable else []
+    # -- Hybrid Scoring Logic --
+    # Base is 100. Deduct points for static issues found.
+    penalty = 0
+    high_count = 0
+    for issue in issues:
+        r = issue.get("risk", "LOW").upper()
+        if r == "HIGH":
+            penalty += 35
+            high_count += 1
+        elif r == "MEDIUM":
+            penalty += 15
+        else:
+            penalty += 5
 
-    if is_vulnerable and not final_issues:
-        final_issues = [{
-            "name": "Unclassified Vulnerability",
-            "risk": "HIGH",
-            "desc": "The AI model detected vulnerability patterns not matched by heuristic rules. Manual review recommended.",
-            "line": None,
-        }]
+    final_score = 100 - penalty
+
+    # Apply ML Signal as a modifier
+    if is_vulnerable:
+        final_score -= 15
+    else:
+        # User requirement: (+5) bonus only if NO HIGH risk issues exist
+        if high_count == 0:
+            final_score += 5
+
+    final_score = max(0, min(100, final_score))
+
+    if final_score >= 85 and high_count == 0:
+        final_verdict = "SECURE"
+        risk_level = "Low Risk"
+    elif final_score >= 60 and high_count == 0:
+        final_verdict = "WARNING"
+        risk_level = "Moderate Risk"
+    else:
+        final_verdict = "VULNERABLE"
+        risk_level = "High Risk"
 
     return {
-        "verdict":    "VULNERABLE" if is_vulnerable else "SAFE",
-        "score":      score,
-        "confidence": round(conf, 4),
-        "issues":     final_issues,
-        "model":      "SmartGuard-BERT v1",
-        "device":     str(device),
+        "final_judgment": {
+            "score": final_score,
+            "verdict": final_verdict,
+            "risk_level": risk_level,
+            "analysis_mode": "Hybrid Deep Scan" if model_ok else "Lightweight Fallback"
+        },
+        "ml_signal": {
+            "verdict": ml_verdict,
+            "confidence": ml_confidence,
+            "model_name": model_str,
+            "device": device_str
+        },
+        "static_analysis": {
+            "issues": issues,
+            "finding_count": len(issues)
+        }
     }
 
 
