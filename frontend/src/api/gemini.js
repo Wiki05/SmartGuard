@@ -5,7 +5,7 @@
 // ============================================================
 
 const GROQ_API_KEY = "gsk_" + "k9xnJmgmaLb1LlKtKydpWGdyb3FY0th3EORQtDsdUKUyiOiQWXZt";
-const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MODELS = [
   "llama-3.3-70b-versatile",   // most capable
   "llama-3.1-8b-instant",      // fastest
@@ -13,7 +13,7 @@ const MODELS = [
 ];
 
 // Backend URL (for ML model endpoint)
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.DEV ? "http://localhost:8000" : "https://smart-guard-backend-phar.onrender.com");
 
 /**
  * Call Groq LLM with a prompt + optional system prompt.
