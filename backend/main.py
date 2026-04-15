@@ -169,10 +169,22 @@ async def analyze_code(code: str = Form(...)):
     if not code.strip():
         raise HTTPException(status_code=400, detail="No contract code provided.")
 
-    if not model_ok:
-        raise HTTPException(status_code=503, detail="Model not loaded. Check backend logs.")
+    # 1. Always grab rule-based heuristic issues first
+    issues = heuristic_issues(code)
 
-    # ML inference
+    # 2. If the AI model failed to load (e.g. Render Free Tier), purely use heuristics as fallback
+    if not model_ok:
+        is_vulnerable = len(issues) > 0
+        return {
+            "verdict":    "VULNERABLE" if is_vulnerable else "SAFE",
+            "score":      30 if is_vulnerable else 100,
+            "confidence": 0.95,
+            "issues":     issues,
+            "model":      "SmartGuard-Heuristics (Fallback)",
+            "device":     "cpu",
+        }
+
+    # 3. If AI model IS loaded, run deep ML inference
     inputs = tokenizer(
         code,
         return_tensors="pt",
@@ -191,10 +203,11 @@ async def analyze_code(code: str = Form(...)):
     raw_safe_prob  = float(probs[0][0].item())
     score          = max(0, min(100, int(raw_safe_prob * 100)))
 
-    issues = heuristic_issues(code) if is_vulnerable else []
+    # If the model thinks it's vulnerable, report all issues. If not, ignore heuristic warnings.
+    final_issues = issues if is_vulnerable else []
 
-    if is_vulnerable and not issues:
-        issues = [{
+    if is_vulnerable and not final_issues:
+        final_issues = [{
             "name": "Unclassified Vulnerability",
             "risk": "HIGH",
             "desc": "The AI model detected vulnerability patterns not matched by heuristic rules. Manual review recommended.",
@@ -205,7 +218,7 @@ async def analyze_code(code: str = Form(...)):
         "verdict":    "VULNERABLE" if is_vulnerable else "SAFE",
         "score":      score,
         "confidence": round(conf, 4),
-        "issues":     issues,
+        "issues":     final_issues,
         "model":      "SmartGuard-BERT v1",
         "device":     str(device),
     }
