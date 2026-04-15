@@ -41,6 +41,11 @@ app.add_middleware(
 )
 
 # -- Device --------------------------------------------------------------------
+# Set thread counts to reduce memory usage on low-RAM VPS (like Render free tier)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+torch.set_num_threads(1)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -49,14 +54,37 @@ tokenizer = None
 model     = None
 model_ok  = False
 
+# Check if we are running in a memory-constrained environment like Render Free Tier
+is_memory_constrained = os.environ.get("RENDER", "false").lower() == "true" or os.environ.get("LOW_MEMORY", "false").lower() == "true"
+
 try:
+    if is_memory_constrained:
+        print("[WARNING] Memory-constrained environment detected (Render Free Tier).")
+        print("[WARNING] Skipping 500MB ML model load to prevent Out-Of-Memory crash.")
+        print("[WARNING] SmartGuard will automatically fall back to fast heuristic scanning.")
+        raise MemoryError("ML model disabled on Render Free Tier to avoid OOM.")
+
+    import gc
+    from transformers import BertConfig
     print("[*] Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(str(TOKENIZER_PATH))
 
     print("[*] Loading model weights...")
-    model = BertForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2)
-    state_dict = torch.load(str(MODEL_PATH), map_location=device)
+    # Initialize empty model via config (avoids heavy 440MB base weights download into RAM)
+    config = BertConfig.from_pretrained("bert-base-uncased", num_labels=2)
+    model = BertForSequenceClassification(config)
+
+    # Load local state_dict directly (mmap=True saves massive RAM on PyTorch 2.1+)
+    try:
+        state_dict = torch.load(str(MODEL_PATH), map_location=device, mmap=True)
+    except TypeError:
+        # Fallback for older PyTorch versions
+        state_dict = torch.load(str(MODEL_PATH), map_location=device)
+        
     model.load_state_dict(state_dict, strict=False)
+    del state_dict
+    gc.collect() # Force garbage collection of massive objects
+
     model.to(device)
     model.eval()
     model_ok = True

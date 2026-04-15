@@ -1,6 +1,9 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
-torch>=2.0.0
+torch==2.2.2+cpu
 transformers>=4.38.0
 python-multipart>=0.0.9
 sentencepiece>=0.1.99
+python-dotenv>=1.0.0

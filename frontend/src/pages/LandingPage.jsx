@@ -250,7 +250,7 @@ export default function LandingPage({ user }) {
         {/* Nav links */}
         <nav style={{ display: "flex", gap: "2.5rem", alignItems: "center" }}>
           {["Features", "How It Works", "About"].map(n => (
-            <a key={n} href={"#" + n.toLowerCase().replace(" ", "-")}
+            <a key={n} href={"#" + n.toLowerCase().replaceAll(" ", "-")}
               style={{ color: "#555", fontSize: 14, fontWeight: 500, transition: "color 0.2s" }}
               onMouseEnter={e => e.target.style.color = "#fff"}
               onMouseLeave={e => e.target.style.color = "#555"}>{n}</a>
@@ -436,8 +436,8 @@ export default function LandingPage({ user }) {
         </div>
       </section>
 
-      {/* ── FINAL CTA ── */}
-      <section style={{ padding: "9rem clamp(1.5rem,5vw,5rem)", textAlign: "center", position: "relative", zIndex: 1 }}>
+      {/* ── FINAL CTA (ABOUT) ── */}
+      <section id="about" style={{ padding: "9rem clamp(1.5rem,5vw,5rem)", textAlign: "center", position: "relative", zIndex: 1 }}>
         <RevealDiv>
           <div style={{
             maxWidth: 700, margin: "0 auto", position: "relative"
