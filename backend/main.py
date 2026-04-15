@@ -90,8 +90,11 @@ try:
     model_ok = True
     print("[OK] SmartGuard model loaded successfully!")
 except Exception as e:
-    print(f"[ERROR] Model load error: {e}")
-    print("   The /analyze endpoint will return an error until the model is available.")
+    if "ML model disabled on Render Free Tier" in str(e):
+        print(f"[INFO] Backend optimized for free tier. {e}")
+    else:
+        print(f"[ERROR] Model load error: {e}")
+        print("   The /analyze endpoint is falling back to heuristic scanning.")
 
 
 # -- Vulnerability heuristics --------------------------------------------------
@@ -153,6 +156,10 @@ def heuristic_issues(code: str) -> list:
 
 
 # -- Endpoints -----------------------------------------------------------------
+
+@app.get("/")
+async def root():
+    return {"status": "SmartGuard API is live", "model_loaded": model_ok}
 
 @app.get("/health")
 async def health():
