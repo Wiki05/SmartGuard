@@ -436,8 +436,41 @@ export default function LandingPage({ user }) {
         </div>
       </section>
 
-      {/* ── FINAL CTA (ABOUT) ── */}
-      <section id="about" style={{ padding: "9rem clamp(1.5rem,5vw,5rem)", textAlign: "center", position: "relative", zIndex: 1 }}>
+      {/* ── ABOUT ── */}
+      <section id="about" style={{
+        padding: "8rem clamp(1.5rem,5vw,5rem)",
+        position: "relative", zIndex: 1,
+        borderTop: "1px solid rgba(255,255,255,0.04)",
+      }}>
+        <RevealDiv style={{ maxWidth: 800, margin: "0 auto", textAlign: "center" }}>
+          <GlowBadge color="#c084fc">Our Mission</GlowBadge>
+          <h2 style={{
+            fontSize: "clamp(2.2rem, 5vw, 3.5rem)", fontWeight: 900,
+            letterSpacing: "-2px", marginTop: "1.2rem", color: "#fff", marginBottom: "2rem"
+          }}>
+            Securing the Future of <span style={{ color: "#c084fc", textShadow: "0 0 30px rgba(192,132,252,0.5)" }}>DeFi</span>
+          </h2>
+          <div style={{
+            background: "rgba(10,10,10,0.85)", border: "1px solid rgba(192,132,252,0.2)",
+            borderRadius: "var(--r-2xl)", padding: "clamp(2rem, 5vw, 4rem)",
+            backdropFilter: "blur(20px)", color: "#aaa", fontSize: 17, lineHeight: 1.8,
+            boxShadow: "0 0 40px rgba(192,132,252,0.05)"
+          }}>
+            <p style={{ marginBottom: "1.5rem" }}>
+              SmartGuard was born out of a critical necessity: the Web3 ecosystem loses billions of dollars annually to smart contract vulnerabilities and malicious exploits. Our vision is to democratize institutional-grade security for developers of all sizes.
+            </p>
+            <p style={{ marginBottom: "1.5rem" }}>
+              By merging <strong style={{color:"#fff"}}>GraphCodeBERT's semantic analysis</strong> with <strong style={{color:"#fff"}}>Gemini AI's reasoning capabilities</strong>, we've created a platform that doesn't just find bugs—it explains them, fixes them, and helps developers build robust architectures from the ground up.
+            </p>
+            <p>
+              Whether you are drafting your first NFT contract or deploying a complex DeFi vault, SmartGuard acts as your tireless, intelligent auditor, ensuring your code is bulletproof <span style={{color:"#c084fc"}}>before</span> it ever reaches the blockchain.
+            </p>
+          </div>
+        </RevealDiv>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section style={{ padding: "9rem clamp(1.5rem,5vw,5rem)", textAlign: "center", position: "relative", zIndex: 1 }}>
         <RevealDiv>
           <div style={{
             maxWidth: 700, margin: "0 auto", position: "relative"
