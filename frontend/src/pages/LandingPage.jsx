@@ -414,7 +414,7 @@ export default function LandingPage({ user }) {
           {steps.map((s, i) => (
             <RevealDiv key={s.num} delay={i * 120} style={{ flex: "1 1 200px", maxWidth: 240, textAlign: "center", position: "relative" }}>
               {i < steps.length - 1 && (
-                <div style={{
+                <div className="hide-on-mobile" style={{
                   position: "absolute", top: 30, left: "62%", width: "75%", height: 1,
                   background: `linear-gradient(90deg, ${s.color}50, transparent)`,
                 }} />
@@ -453,13 +453,13 @@ export default function LandingPage({ user }) {
           </h2>
 
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))",
             gap: "2rem", textAlign: "left"
           }}>
             {/* Left Large Card */}
             <div style={{
               background: "rgba(10,10,10,0.85)", border: "1px solid rgba(192,132,252,0.15)",
-              borderRadius: "var(--r-2xl)", padding: "3.5rem",
+              borderRadius: "var(--r-2xl)", padding: "clamp(1.5rem, 5vw, 3.5rem)",
               backdropFilter: "blur(20px)", transition: "all 0.3s ease",
               boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
             }}>
@@ -492,7 +492,7 @@ export default function LandingPage({ user }) {
             {/* Right Large Card */}
             <div style={{
               background: "rgba(10,10,10,0.85)", border: "1px solid rgba(192,132,252,0.15)",
-              borderRadius: "var(--r-2xl)", padding: "3.5rem",
+              borderRadius: "var(--r-2xl)", padding: "clamp(1.5rem, 5vw, 3.5rem)",
               backdropFilter: "blur(20px)", transition: "all 0.3s ease",
               boxShadow: "0 10px 40px rgba(0,0,0,0.3)"
             }}>
