@@ -276,6 +276,7 @@ export default function DashboardLayout({ user, page, onPageChange, onLogout, ch
 
   const [hoveredNav, setHoveredNav] = useState(null);
   const [sidebarMenu, setSidebarMenu] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const currentNav = NAV_ITEMS.find(n => n.id === page);
 
   return (
@@ -395,56 +396,115 @@ export default function DashboardLayout({ user, page, onPageChange, onLogout, ch
       </aside>
       )}
 
-      {/* ══ BOTTOM NAV (MOBILE) ══ */}
-      {isMobile && (
-        <nav style={{
-          position: "fixed", bottom: 0, left: 0, right: 0, height: 65,
-          background: "rgba(4,4,4,0.95)", borderTop: "1px solid #1a1a1a",
-          display: "flex", alignItems: "center", justifyContent: "space-around",
-          zIndex: 90, backdropFilter: "blur(20px)",
-          paddingBottom: "env(safe-area-inset-bottom)"
+      {/* ══ MOBILE DRAWER OVERLAY ══ */}
+      {isMobile && createPortal(
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 99999,
+          pointerEvents: mobileDrawerOpen ? "auto" : "none",
         }}>
-          {NAV_ITEMS.map(item => {
-            const active = page === item.id;
-            return (
-              <button key={item.id} onClick={() => onPageChange(item.id)} style={{
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                gap: 4, padding: "0.5rem", border: "none", background: "none",
-                color: active ? item.color : "#555", flex: 1
-              }}>
-                <Icon name={item.icon} size={20} color={active ? item.color : "#555"} />
-                <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, opacity: active ? 1 : 0 }}>{item.label}</span>
+          {/* Backdrop */}
+          <div style={{
+            position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            opacity: mobileDrawerOpen ? 1 : 0, transition: "opacity 0.3s ease"
+          }} onClick={() => setMobileDrawerOpen(false)} />
+          
+          {/* Menu Drawer */}
+          <aside style={{
+            position: "absolute", top: 0, bottom: 0, left: 0, width: 280,
+            background: "#040404", borderRight: "1px solid #1a1a1a",
+            transform: mobileDrawerOpen ? "translateX(0)" : "translateX(-100%)",
+            transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            display: "flex", flexDirection: "column",
+            boxShadow: mobileDrawerOpen ? "20px 0 50px rgba(0,0,0,0.8)" : "none",
+          }}>
+            <div style={{ height: 60, padding: "0 1.2rem", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #111" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Logo size={24} />
+                <span style={{ fontWeight: 900, fontSize: 16, color: "#fff", letterSpacing: "-0.5px" }}>Smart<span style={{ color: "#a8ff6c" }}>Guard</span></span>
+              </div>
+              <button onClick={() => setMobileDrawerOpen(false)} style={{ background: "none", border: "none", color: "#888", padding: 5, cursor: "pointer" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
-            )
-          })}
-        </nav>
+            </div>
+            
+            <nav style={{ flex: 1, padding: "1.2rem 0.8rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+              {NAV_ITEMS.map(item => {
+                const active = page === item.id;
+                return (
+                  <button key={item.id} onClick={() => { onPageChange(item.id); setMobileDrawerOpen(false); }} style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "1rem 1.2rem",
+                    background: active ? `${item.color}15` : "transparent",
+                    color: active ? item.color : "#d0d0d0", border: active ? `1px solid ${item.color}30` : "1px solid transparent", 
+                    borderRadius: 14, fontSize: 15, fontWeight: active ? 700 : 500, width: "100%", textAlign: "left",
+                    transition: "all 0.2s"
+                  }}>
+                    <Icon name={item.icon} size={20} color={active ? item.color : "#888"} />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </nav>
+
+            {/* Mobile Profile Card */}
+            <div style={{ padding: "1.2rem", borderTop: "1px solid #1a1a1a", background: "rgba(10,10,10,0.5)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: "1.2rem" }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#a8ff6c,#00e5ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900, color: "#000", overflow: "hidden", boxShadow: "0 4px 12px rgba(168,255,108,0.3)" }}>
+                  {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (user?.name || "U")[0].toUpperCase()}
+                </div>
+                <div style={{ overflow: "hidden", flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name}</div>
+                  <div style={{ fontSize: 12, color: "#888", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</div>
+                </div>
+              </div>
+              <button onClick={() => { setMobileDrawerOpen(false); onLogout(); }} style={{
+                display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "0.85rem",
+                background: "rgba(255,77,109,0.08)", color: "#ff4d6d", border: "1px solid rgba(255,77,109,0.2)",
+                borderRadius: 12, fontSize: 14, fontWeight: 600, justifyContent: "center", cursor: "pointer"
+              }}>
+                <Icon name="logout" size={16} color="currentColor" /> Sign Out
+              </button>
+            </div>
+          </aside>
+        </div>,
+        document.body
       )}
 
       {/* ══ MAIN ══ */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", paddingBottom: isMobile ? 65 : 0 }}>
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
-        {/* Topbar — NO backdrop-filter (it breaks position:fixed children) */}
+        {/* Topbar */}
         <header style={{
-          height: 56, padding: "0 1.4rem",
+          height: 60, padding: isMobile ? "0 1rem" : "0 1.4rem",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          borderBottom: "1px solid #111",
-          background: "rgba(4,4,4,0.98)",
-          flexShrink: 0, gap: 12, position: "relative", zIndex: 40,
+          borderBottom: "1px solid #111", background: "rgba(4,4,4,0.98)",
+          flexShrink: 0, gap: 10, position: "relative", zIndex: 40,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {currentNav && (
+            {isMobile && (
+              <button onClick={() => setMobileDrawerOpen(true)} style={{
+                background: "none", border: "none", color: "#eee", padding: "0.25rem", marginRight: 4, cursor: "pointer"
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+              </button>
+            )}
+            
+            {!isMobile && currentNav && (
               <div style={{ width: 28, height: 28, borderRadius: 8, background: `${currentNav.color}0d`, border: `1px solid ${currentNav.color}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name={currentNav.icon} size={13} color={currentNav.color} />
               </div>
             )}
+            
             <div>
-              <h1 style={{ fontWeight: 700, fontSize: isMobile ? 12 : 14, letterSpacing: "-0.3px", color: "#ddd", whiteSpace: "nowrap" }}>{currentNav?.label}</h1>
+              <h1 style={{ fontWeight: 800, fontSize: isMobile ? 18 : 14, letterSpacing: "-0.5px", color: "#fff", whiteSpace: "nowrap" }}>
+                {isMobile ? "SmartGuard" : currentNav?.label}
+              </h1>
               {!isMobile && <div style={{ fontSize: 10, color: "#2a2a2a" }}>SmartGuard Platform</div>}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <AIStatus />
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
+            {!isMobile && <AIStatus />}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, transform: isMobile ? "scale(0.85)" : "none", transformOrigin: "right center" }}>
               <WalletButton />
             </div>
           </div>
