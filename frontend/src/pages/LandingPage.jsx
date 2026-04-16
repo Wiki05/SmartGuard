@@ -276,16 +276,11 @@ export default function LandingPage({ user }) {
 
       {/* ── HERO ── */}
       <section style={{
-        padding: "clamp(5rem,12vw,10rem) clamp(1.5rem,5vw,5rem) 7rem",
+        padding: "clamp(1rem,4vw,3rem) clamp(1.5rem,5vw,5rem) 4rem",
         textAlign: "center", position: "relative", zIndex: 1,
-        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        display: "flex", alignItems: "center", justifyContent: "center",
         flexDirection: "column"
       }}>
-
-        {/* Badge */}
-        <div style={{ animation: "fadeInDown 0.7s ease both", marginBottom: "2rem" }}>
-          <GlowBadge>Powered by GraphCodeBERT + Gemini AI</GlowBadge>
-        </div>
 
         {/* Headline */}
         <h1 style={{
