@@ -249,7 +249,7 @@ export default function LandingPage({ user }) {
         </div>
 
         {/* Nav links */}
-        <nav style={{ display: "flex", gap: "2.5rem", alignItems: "center" }}>
+        <nav className="hide-on-mobile" style={{ display: "flex", gap: "2.5rem", alignItems: "center" }}>
           {["Features", "How It Works", "About"].map(n => (
             <a key={n} href={"#" + n.toLowerCase().replaceAll(" ", "-")}
               style={{ color: "#555", fontSize: 14, fontWeight: 500, transition: "color 0.2s" }}
