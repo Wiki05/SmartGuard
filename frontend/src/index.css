@@ -551,7 +551,15 @@ img { max-width: 100%; }
   .generator-grid {
     grid-template-columns: 1fr !important;
   }
+  .hero-section {
+    min-height: calc(100vh - 66px); /* Centers the flex content strictly inside viewport */
+    padding: 2rem 1rem;
+  }
 }    
+
+.hero-section {
+  padding: clamp(3rem, 8vw, 6rem) clamp(1.5rem, 5vw, 5rem) 4rem;
+}
 
 .dashboard-grid {
   display: grid;

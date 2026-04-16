@@ -275,8 +275,7 @@ export default function LandingPage({ user }) {
       </header>
 
       {/* ── HERO ── */}
-      <section style={{
-        padding: "clamp(1rem,4vw,3rem) clamp(1.5rem,5vw,5rem) 4rem",
+      <section className="hero-section" style={{
         textAlign: "center", position: "relative", zIndex: 1,
         display: "flex", alignItems: "center", justifyContent: "center",
         flexDirection: "column"
