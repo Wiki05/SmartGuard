@@ -190,7 +190,7 @@ Please provide a developer-friendly explanation of these combined findings and r
 
   return (
     <div style={{ padding: "1.5rem", maxWidth: 1300, margin: "0 auto", animation: "fadeInUp 0.35s ease" }}>
-      <div style={{ display: "grid", gridTemplateColumns: result ? "1fr 1fr" : "1fr", gap: "1.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: result ? "repeat(auto-fit, minmax(min(100%, 400px), 1fr))" : "1fr", gap: "1.5rem" }}>
 
         {/* LEFT — Input */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -369,7 +369,7 @@ Please provide a developer-friendly explanation of these combined findings and r
             </div>
 
             {/* TIER 2 & 3: Transparent Data Split */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "1rem" }}>
               
               {/* TIER 2: ML Signal */}
               <div style={{ 

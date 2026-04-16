@@ -356,7 +356,8 @@ export default function AlertsPage({ user }) {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: "1.5rem" }}>
+        {/* Body Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 650px), 1fr))", gap: "1.5rem" }}>
 
           {/* LEFT — Live Prices Grid */}
           <div>

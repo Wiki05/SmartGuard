@@ -72,8 +72,8 @@ export default function GeneratorPage({ onNavigateToAudit }) {
   };
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: 1200, margin: "0 auto", animation: "fadeInUp 0.35s ease" }}>
-      <div style={{ display: "grid", gridTemplateColumns: generated ? "1fr 1fr" : "1fr", gap: "1.5rem" }}>
+    <div style={{ padding: "1.5rem", maxWidth: 1300, margin: "0 auto", animation: "fadeInUp 0.35s ease" }}>
+      <div style={{ display: "grid", gridTemplateColumns: generated ? "repeat(auto-fit, minmax(min(100%, 500px), 1fr))" : "1fr", gap: "1.5rem" }}>
 
         {/* LEFT — Input Panel */}
         <div>

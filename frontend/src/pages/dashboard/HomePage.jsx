@@ -31,8 +31,7 @@ export default function HomePage({ user, onNavigate }) {
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
-    <div style={{ padding: "1.5rem", maxWidth: 1200, margin: "0 auto", animation: "fadeInUp 0.35s ease" }}>
-
+    <div style={{ padding: "1.5rem", maxWidth: 1200, margin: "0 auto", animation: "fadeInUp 0.4s ease" }}>
       {/* Welcome Banner */}
       <RevealDiv>
         <div style={{
@@ -121,7 +120,7 @@ export default function HomePage({ user, onNavigate }) {
       </RevealDiv>
 
       {/* Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 330px", gap: "1.5rem" }}>
+      <div className="dashboard-grid">
 
         {/* Quick Actions */}
         <RevealDiv delay={120}>

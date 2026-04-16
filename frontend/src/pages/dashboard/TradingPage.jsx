@@ -218,7 +218,8 @@ export default function TradingPage() {
         </div>
       </RevealDiv>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "1.5rem" }}>
+      {/* Main Layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 650px), 1fr))", gap: "1.5rem" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
 
           {/* Market overview */}

@@ -152,7 +152,7 @@ function AIStatus() {
       borderRadius: 50, fontSize: 11.5, color: online ? "#a8ff6c" : "#ff4d6d", fontWeight: 600,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: online ? "#a8ff6c" : "#ff4d6d", display: "inline-block", animation: online ? "pulseDot 2s infinite" : "none", boxShadow: online ? "0 0 6px #a8ff6c" : "0 0 6px #ff4d6d" }} />
-      {online ? "AI Online" : "AI Offline"}
+      <span className="hide-on-mobile">{online ? "AI Online" : "AI Offline"}</span>
     </div>
   );
 }
@@ -264,22 +264,32 @@ function UserMenu({ user, onLogout, onPageChange }) {
 
 /* ══════════════════════════════════════════════════════════════════ */
 export default function DashboardLayout({ user, page, onPageChange, onLogout, children }) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handle = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handle);
+    return () => window.removeEventListener("resize", handle);
+  }, []);
+
   const [collapsed,  setCollapsed]  = useState(true);
+  useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
+
   const [hoveredNav, setHoveredNav] = useState(null);
   const [sidebarMenu, setSidebarMenu] = useState(false);
   const currentNav = NAV_ITEMS.find(n => n.id === page);
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#000", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", height: "100vh", background: "#000", overflow: "hidden" }}>
 
       {/* ══ SIDEBAR ══ */}
-      <aside style={{
-        width: collapsed ? 56 : 230,
-        background: "#040404", borderRight: "1px solid #111",
-        display: "flex", flexDirection: "column",
-        transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
-        overflow: "hidden", flexShrink: 0, position: "relative", zIndex: 50,
-      }}>
+      {!isMobile && (
+        <aside style={{
+          width: collapsed ? 56 : 230,
+          background: "#040404", borderRight: "1px solid #111",
+          display: "flex", flexDirection: "column",
+          transition: "width 0.28s cubic-bezier(0.4,0,0.2,1)",
+          overflow: "hidden", flexShrink: 0, position: "relative", zIndex: 50,
+        }}>
         {/* top accent */}
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: "linear-gradient(90deg,transparent,rgba(168,255,108,0.5),transparent)", pointerEvents: "none" }} />
 
@@ -383,9 +393,35 @@ export default function DashboardLayout({ user, page, onPageChange, onLogout, ch
           </button>
         </div>
       </aside>
+      )}
+
+      {/* ══ BOTTOM NAV (MOBILE) ══ */}
+      {isMobile && (
+        <nav style={{
+          position: "fixed", bottom: 0, left: 0, right: 0, height: 65,
+          background: "rgba(4,4,4,0.95)", borderTop: "1px solid #1a1a1a",
+          display: "flex", alignItems: "center", justifyContent: "space-around",
+          zIndex: 90, backdropFilter: "blur(20px)",
+          paddingBottom: "env(safe-area-inset-bottom)"
+        }}>
+          {NAV_ITEMS.map(item => {
+            const active = page === item.id;
+            return (
+              <button key={item.id} onClick={() => onPageChange(item.id)} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 4, padding: "0.5rem", border: "none", background: "none",
+                color: active ? item.color : "#555", flex: 1
+              }}>
+                <Icon name={item.icon} size={20} color={active ? item.color : "#555"} />
+                <span style={{ fontSize: 9, fontWeight: active ? 700 : 500, opacity: active ? 1 : 0 }}>{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+      )}
 
       {/* ══ MAIN ══ */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", paddingBottom: isMobile ? 65 : 0 }}>
 
         {/* Topbar — NO backdrop-filter (it breaks position:fixed children) */}
         <header style={{
@@ -402,15 +438,14 @@ export default function DashboardLayout({ user, page, onPageChange, onLogout, ch
               </div>
             )}
             <div>
-              <h1 style={{ fontWeight: 700, fontSize: 14, letterSpacing: "-0.3px", color: "#ddd" }}>{currentNav?.label}</h1>
-              <div style={{ fontSize: 10, color: "#2a2a2a" }}>SmartGuard Platform</div>
+              <h1 style={{ fontWeight: 700, fontSize: isMobile ? 12 : 14, letterSpacing: "-0.3px", color: "#ddd", whiteSpace: "nowrap" }}>{currentNav?.label}</h1>
+              {!isMobile && <div style={{ fontSize: 10, color: "#2a2a2a" }}>SmartGuard Platform</div>}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <AIStatus />
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <WalletButton />
-              <UserMenu user={user} onLogout={onLogout} onPageChange={onPageChange} />
             </div>
           </div>
         </header>
