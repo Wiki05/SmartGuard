@@ -552,13 +552,13 @@ img { max-width: 100%; }
     grid-template-columns: 1fr !important;
   }
   .hero-section {
-    min-height: calc(100vh - 66px); /* Centers the flex content strictly inside viewport */
-    padding: 2rem 1rem;
+    padding: 0 1.5rem;
   }
 }    
 
 .hero-section {
-  padding: clamp(3rem, 8vw, 6rem) clamp(1.5rem, 5vw, 5rem) 4rem;
+  min-height: calc(100vh - 66px); /* Perfectly center inside viewport remaining space */
+  padding: 0 clamp(1.5rem, 5vw, 5rem);
 }
 
 .dashboard-grid {
