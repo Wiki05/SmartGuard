@@ -119,6 +119,7 @@ export async function signInWithGoogle() {
     await ensureUserDoc(cred.user, cred.user.displayName);
     return { user: cred.user, error: null };
   } catch (e) {
+    console.error("Google Auth Error:", e.code, e.message);
     return { user: null, error: mapFirebaseError(e.code) };
   }
 }
