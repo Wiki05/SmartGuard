@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import Icon from "../../components/Icon";
-import { callGemini } from "../../api/gemini";
+import { callGroq } from "../../api/groq";
 
 const SUGGESTIONS = [
   "Explain reentrancy attacks in Solidity",
@@ -140,7 +140,7 @@ export default function ChatPage({ user }) {
     setAiError(false);
     try {
       const history = updated.map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`).join("\n");
-      const reply = await callGemini(history, SYSTEM_PROMPT);
+      const reply = await callGroq(history, SYSTEM_PROMPT);
       setMessages(prev => [...prev, { role: "assistant", content: reply }]);
     } catch (e) {
       setMessages(prev => [...prev, {

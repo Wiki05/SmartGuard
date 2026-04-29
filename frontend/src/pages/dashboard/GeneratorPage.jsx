@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Icon from "../../components/Icon";
-import { callGemini } from "../../api/gemini";
+import { callGroq } from "../../api/groq";
 
 const TEMPLATES = [
   "ERC-20 token with 1 million supply, minting, and burn function",
@@ -38,13 +38,13 @@ export default function GeneratorPage({ onNavigateToAudit }) {
     setGenerated("");
     setActiveTemplate(null);
     try {
-      const code = await callGemini(
+      const code = await callGroq(
         `Create a production-ready Solidity smart contract for: ${prompt}`,
         SYSTEM_PROMPT
       );
       setGenerated(code);
     } catch {
-      setGenerated("// Error generating contract. Please check your Gemini API key.");
+      setGenerated("// Error generating contract. Please check your Groq API key.");
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { callGemini, BACKEND_URL } from "../../api/gemini";
+import { callGroq, BACKEND_URL } from "../../api/groq";
 
 /* ── Coin list (CoinGecko IDs) ──────────────────────────────────── */
 const COINS = [
@@ -234,7 +234,7 @@ export default function AlertsPage({ user }) {
     setAiLoading(true);
     try {
       const top5 = p.slice(0, 5).map(x => `${x.symbol}: ${fmt(x.price)} (${x.change24h >= 0 ? "+" : ""}${(x.change24h ?? 0).toFixed(2)}%)`).join(", ");
-      const summary = await callGemini(
+      const summary = await callGroq(
         `Live crypto prices: ${top5}. What are the key market trends right now? Give 2-3 sentences of insight.`,
         "You are a crypto market analyst. Be concise, data-driven, and highlight key opportunities or risks."
       );

@@ -20,7 +20,7 @@ export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.
  * Returns the text response string.
  * Throws on error so callers can show proper error UI.
  */
-export async function callGemini(prompt, systemPrompt = "", opts = {}) {
+export async function callGroq(prompt, systemPrompt = "", opts = {}) {
   const { temperature = 0.7, maxTokens = 2048 } = opts;
 
   const messages = [];

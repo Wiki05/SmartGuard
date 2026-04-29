@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "../../components/Icon";
-import { callGemini, BACKEND_URL } from "../../api/gemini";
+import { callGroq, BACKEND_URL } from "../../api/groq";
 import { saveAuditResult } from "../../api/firestoreService";
 
 const SAMPLE_CONTRACT = `// SPDX-License-Identifier: MIT
@@ -156,7 +156,7 @@ ${code}
 
 Please provide a developer-friendly explanation of these combined findings and remediation steps.`;
       
-      const explanation = await callGemini(prompt, SYSTEM_PROMPT);
+      const explanation = await callGroq(prompt, SYSTEM_PROMPT);
       setAiExplanation(explanation);
     } catch (e) {
       console.error(e);

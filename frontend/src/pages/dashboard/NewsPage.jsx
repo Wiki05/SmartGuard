@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Icon from "../../components/Icon";
-import { callGemini } from "../../api/gemini";
+import { callGroq } from "../../api/groq";
 
 const CATEGORIES = ["all", "defi", "nft", "security", "regulation", "ethereum", "bitcoin"];
 
@@ -58,12 +58,12 @@ export default function NewsPage() {
 
       setNews(items);
 
-      // AI summary via Gemini
+      // AI summary via Groq
       if (items.length > 0) {
         setSummaryLoading(true);
         const headlines = items.slice(0, 5).map(n => n.title).join("\n");
         try {
-          const sum = await callGemini(
+          const sum = await callGroq(
             `Analyze these Web3 news headlines and summarize the key market trends in 2-3 sentences:\n${headlines}`,
             "You are a Web3 market analyst. Be concise and highlight key implications for crypto investors and developers."
           );
@@ -84,7 +84,7 @@ export default function NewsPage() {
       setSummaryLoading(true);
       const headlines = FALLBACK_NEWS.slice(0, 5).map(n => n.title).join("\n");
       try {
-        const sum = await callGemini(
+        const sum = await callGroq(
           `Analyze these Web3 news topics and summarize key trends in 2-3 sentences:\n${headlines}`,
           "You are a Web3 market analyst. Be concise and insightful."
         );
